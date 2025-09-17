@@ -1,6 +1,7 @@
 const express = require('express');
 const { Bot } = require('@maxhub/max-bot-api');
 const { dbHelpers } = require('../db');
+const smsService = require('../utils/smsService');
 
 const router = express.Router();
 
@@ -22,6 +23,13 @@ router.post('/request-verification', async (req, res) => {
     return res.status(400).json({ error: 'Номер телефона обязателен' });
   }
 
+  // Validate phone number format
+  if (!smsService.validatePhoneNumber(phone)) {
+    return res.status(400).json({ 
+      error: 'Неверный формат номера. Используйте формат +7xxxxxxxxxx (Россия) или +375xxxxxxxxx (Беларусь)' 
+    });
+  }
+
   try {
     // Generate 6-digit verification code
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -33,15 +41,41 @@ router.post('/request-verification', async (req, res) => {
       [phone, verificationCode, expiresAt.toISOString()]
     );
     
-    // In a real app, you would send SMS here
-    // For now, we'll return the code (remove in production)
-    console.log(`Verification code for ${phone}: ${verificationCode}`);
-    
-    res.json({
-      message: 'Код подтверждения отправлен на номер',
-      // Remove this line in production:
-      debug_code: verificationCode
-    });
+    // Send SMS with verification code
+    if (smsService.isConfigured()) {
+      try {
+        const smsResult = await smsService.sendVerificationCode(phone, verificationCode);
+        console.log(`SMS sent successfully to ${smsService.formatPhoneNumberForDisplay(phone)}`);
+        
+        res.json({
+          message: `Код подтверждения отправлен на номер ${smsService.formatPhoneNumberForDisplay(phone)}`,
+          phone_display: smsService.formatPhoneNumberForDisplay(phone)
+        });
+      } catch (smsError) {
+        // SMS failed, but still allow verification for development
+        console.error('SMS sending failed:', smsError.message);
+        
+        // In development mode, show the code
+        const isDevelopment = process.env.NODE_ENV !== 'production';
+        
+        res.json({
+          message: isDevelopment 
+            ? `SMS не отправлен (ошибка сервиса), но код для тестирования: ${verificationCode}` 
+            : 'Ошибка отправки SMS. Попробуйте позже.',
+          error: isDevelopment ? smsError.message : undefined,
+          debug_code: isDevelopment ? verificationCode : undefined
+        });
+      }
+    } else {
+      // SMS not configured - development mode
+      console.log(`Verification code for ${phone}: ${verificationCode}`);
+      
+      res.json({
+        message: 'SMS-сервис не настроен. Код для тестирования:',
+        debug_code: verificationCode,
+        info: 'Для настройки SMS добавьте переменные окружения TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN и TWILIO_PHONE_NUMBER'
+      });
+    }
     
   } catch (error) {
     res.status(500).json({ error: error.message });
