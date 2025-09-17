@@ -76,7 +76,9 @@ function hideNotification() {
 async function loadAccounts() {
     try {
         showLoading();
-        const response = await fetch('/api/accounts');
+        const response = await fetch('/api/accounts', {
+            headers: { 'X-API-Key': 'admin123' }
+        });
         accounts = await response.json();
         renderAccounts();
     } catch (error) {
@@ -129,6 +131,7 @@ async function addAccount() {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
+                'X-API-Key': 'admin123',
                 'X-API-Key': 'admin123'
             },
             body: JSON.stringify({ name, bot_token: botToken })
@@ -163,7 +166,10 @@ async function testToken() {
         showLoading();
         const response = await fetch('/api/accounts/test', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': 'admin123' 
+            },
             body: JSON.stringify({ bot_token: botToken })
         });
         
@@ -186,7 +192,10 @@ async function toggleAccount(id, isActive) {
         showLoading();
         const response = await fetch(`/api/accounts/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': 'admin123' 
+            },
             body: JSON.stringify({ is_active: isActive })
         });
         
@@ -212,7 +221,10 @@ async function deleteAccount(id) {
     
     try {
         showLoading();
-        const response = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/accounts/${id}`, { 
+            method: 'DELETE',
+            headers: { 'X-API-Key': 'admin123' }
+        });
         const result = await response.json();
         
         if (response.ok) {
@@ -232,7 +244,9 @@ async function deleteAccount(id) {
 async function loadContacts() {
     try {
         showLoading();
-        const response = await fetch('/api/contacts');
+        const response = await fetch('/api/contacts', {
+            headers: { 'X-API-Key': 'admin123' }
+        });
         contacts = await response.json();
         renderContacts();
         updateRecipientList();
@@ -290,7 +304,10 @@ async function addContact() {
         showLoading();
         const response = await fetch('/api/contacts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': 'admin123' 
+            },
             body: JSON.stringify({ 
                 name, 
                 chat_id: chatId, 
@@ -334,7 +351,10 @@ async function importContacts() {
         showLoading();
         const response = await fetch('/api/contacts/import', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': 'admin123' 
+            },
             body: JSON.stringify({ 
                 contacts: contactsData, 
                 account_id: parseInt(accountId) 
@@ -364,7 +384,10 @@ async function deleteContact(id) {
     
     try {
         showLoading();
-        const response = await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/contacts/${id}`, { 
+            method: 'DELETE',
+            headers: { 'X-API-Key': 'admin123' }
+        });
         const result = await response.json();
         
         if (response.ok) {
@@ -503,7 +526,10 @@ async function sendBulkMessage() {
         
         const response = await fetch('/api/messages/send-bulk', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': 'admin123' 
+            },
             body: JSON.stringify({
                 account_id: parseInt(accountId),
                 contact_ids: selectedContacts,
@@ -565,12 +591,16 @@ async function loadMessageHistory() {
         showLoading();
         
         // Load statistics
-        const statsResponse = await fetch(`/api/messages/stats${accountId ? '?account_id=' + accountId : ''}`);
+        const statsResponse = await fetch(`/api/messages/stats${accountId ? '?account_id=' + accountId : ''}`, {
+            headers: { 'X-API-Key': 'admin123' }
+        });
         const stats = await statsResponse.json();
         renderStats(stats);
         
         // Load message history
-        const historyResponse = await fetch(`/api/messages${accountId ? '?account_id=' + accountId : ''}`);
+        const historyResponse = await fetch(`/api/messages${accountId ? '?account_id=' + accountId : ''}`, {
+            headers: { 'X-API-Key': 'admin123' }
+        });
         const messages = await historyResponse.json();
         renderMessageHistory(messages);
         
@@ -651,7 +681,10 @@ async function deleteMessage(id) {
     
     try {
         showLoading();
-        const response = await fetch(`/api/messages/${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/messages/${id}`, { 
+            method: 'DELETE',
+            headers: { 'X-API-Key': 'admin123' }
+        });
         const result = await response.json();
         
         if (response.ok) {
