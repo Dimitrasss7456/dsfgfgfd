@@ -61,39 +61,41 @@ router.post('/request-verification', async (req, res) => {
       [phone, verificationCode, expiresAt.toISOString()]
     );
     
-    // Send SMS with verification code
-    if (smsService.isConfigured()) {
+    // Try to get an active bot for SMS sending
+    const botToken = await smsService.getActiveBotToken(dbHelpers);
+    
+    if (botToken) {
       try {
-        const smsResult = await smsService.sendVerificationCode(phone, verificationCode);
-        console.log(`SMS sent successfully to ${smsService.formatPhoneNumberForDisplay(phone)}`);
+        const smsResult = await smsService.sendVerificationCode(phone, verificationCode, botToken);
+        console.log(`SMS sent successfully to ${smsService.formatPhoneNumberForDisplay(phone)} via MAX Messenger`);
         
         res.json({
-          message: `Код подтверждения отправлен на номер ${smsService.formatPhoneNumberForDisplay(phone)}`,
+          message: `Код подтверждения отправлен через MAX Messenger на номер ${smsService.formatPhoneNumberForDisplay(phone)}`,
           phone_display: smsService.formatPhoneNumberForDisplay(phone)
         });
       } catch (smsError) {
         // SMS failed, but still allow verification for development
-        console.error('SMS sending failed:', smsError.message);
+        console.error('MAX SMS sending failed:', smsError.message);
         
         // In development mode, show the code
         const isDevelopment = process.env.NODE_ENV !== 'production';
         
         res.json({
           message: isDevelopment 
-            ? `SMS не отправлен (ошибка сервиса), но код для тестирования: ${verificationCode}` 
-            : 'Ошибка отправки SMS. Попробуйте позже.',
+            ? `SMS через MAX не отправлен (${smsError.message}), но код для тестирования: ${verificationCode}` 
+            : 'Ошибка отправки SMS через MAX Messenger. Попробуйте позже.',
           error: isDevelopment ? smsError.message : undefined,
           debug_code: isDevelopment ? verificationCode : undefined
         });
       }
     } else {
-      // SMS not configured - development mode
+      // No active bot available - development mode
       console.log(`Verification code for ${phone}: ${verificationCode}`);
       
       res.json({
-        message: 'SMS-сервис не настроен. Код для тестирования:',
+        message: 'Нет активных ботов для отправки SMS. Код для тестирования:',
         debug_code: verificationCode,
-        info: 'Для настройки SMS добавьте переменные окружения TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN и TWILIO_PHONE_NUMBER'
+        info: 'Добавьте и активируйте хотя бы один аккаунт бота для отправки SMS через MAX Messenger'
       });
     }
     

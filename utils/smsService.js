@@ -1,25 +1,29 @@
-// Lazy load Twilio to prevent server crash if package is not installed
-let twilio = null;
 
-// SMS service using Twilio integration for MAX Messenger app
+const { Bot } = require('@maxhub/max-bot-api');
+
+// SMS service using MAX Messenger integration
 class SMSService {
   constructor() {
-    this.client = null;
-    this.fromPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-    this.accountSid = process.env.TWILIO_ACCOUNT_SID;
-    this.authToken = process.env.TWILIO_AUTH_TOKEN;
+    // We'll use the first available active bot token for SMS sending
+    this.bot = null;
+  }
+
+  /**
+   * Initialize SMS service with an active bot token
+   * @param {string} botToken - Bot token to use for SMS
+   */
+  async initialize(botToken) {
+    if (!botToken) return false;
     
-    // Initialize Twilio client if credentials are available
-    if (this.accountSid && this.authToken) {
-      try {
-        if (!twilio) {
-          twilio = require('twilio');
-        }
-        this.client = twilio(this.accountSid, this.authToken);
-      } catch (error) {
-        console.error('Twilio package not found. SMS functionality disabled:', error.message);
-        this.client = null;
-      }
+    try {
+      this.bot = new Bot(botToken);
+      // Test the bot
+      await this.bot.api.getMe();
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize SMS bot:', error.message);
+      this.bot = null;
+      return false;
     }
   }
 
@@ -27,48 +31,71 @@ class SMSService {
    * Check if SMS service is properly configured
    */
   isConfigured() {
-    return !!(this.client && this.fromPhoneNumber);
+    return !!this.bot;
   }
 
   /**
-   * Send SMS verification code
+   * Send SMS verification code using MAX Messenger
    * @param {string} phoneNumber - Phone number in international format (+7xxxxxxxxxx)
    * @param {string} verificationCode - 6-digit verification code
+   * @param {string} botToken - Bot token to use for sending
    * @returns {Promise<Object>} - Result of SMS sending
    */
-  async sendVerificationCode(phoneNumber, verificationCode) {
+  async sendVerificationCode(phoneNumber, verificationCode, botToken = null) {
+    // Initialize with provided bot token if needed
+    if (botToken && !this.isConfigured()) {
+      const initialized = await this.initialize(botToken);
+      if (!initialized) {
+        throw new Error('Не удалось инициализировать бота для отправки SMS');
+      }
+    }
+
     if (!this.isConfigured()) {
-      throw new Error('SMS service not configured. Please check TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER environment variables.');
+      throw new Error('SMS сервис не настроен. Добавьте активный аккаунт бота.');
     }
 
     try {
       const message = `Ваш код подтверждения для MAX Messenger: ${verificationCode}\n\nКод действителен в течение 10 минут.\nНе передавайте этот код никому!`;
       
-      const result = await this.client.messages.create({
-        body: message,
-        from: this.fromPhoneNumber,
-        to: phoneNumber
+      // Use MAX API to send message to phone number
+      // In MAX Messenger, we can send to phone number as chat_id
+      const result = await this.bot.api.sendMessage(phoneNumber, {
+        text: message
       });
 
       return {
         success: true,
-        messageSid: result.sid,
-        status: result.status,
-        message: 'SMS успешно отправлен'
+        messageId: result.message_id,
+        message: 'SMS успешно отправлен через MAX Messenger'
       };
     } catch (error) {
-      console.error('SMS sending error:', error);
+      console.error('MAX SMS sending error:', error);
       
-      // Handle specific Twilio errors
-      if (error.code === 21608) {
-        throw new Error('Номер телефона не может получать SMS от этого номера');
-      } else if (error.code === 21614) {
-        throw new Error('Неверный формат номера телефона');
-      } else if (error.code === 21211) {
-        throw new Error('Номер телефона не действителен или не может получать SMS');
+      // Handle specific MAX API errors
+      if (error.message.includes('phone')) {
+        throw new Error('Номер телефона не найден в MAX Messenger');
+      } else if (error.message.includes('blocked')) {
+        throw new Error('Пользователь заблокировал бота или не найден');
       } else {
-        throw new Error(`Ошибка отправки SMS: ${error.message}`);
+        throw new Error(`Ошибка отправки SMS через MAX: ${error.message}`);
       }
+    }
+  }
+
+  /**
+   * Get first available bot token from database for SMS sending
+   * @param {Object} dbHelpers - Database helpers instance
+   * @returns {Promise<string|null>} - Bot token or null
+   */
+  async getActiveBotToken(dbHelpers) {
+    try {
+      const activeBot = await dbHelpers.get(
+        'SELECT bot_token FROM accounts WHERE is_active = 1 LIMIT 1'
+      );
+      return activeBot ? activeBot.bot_token : null;
+    } catch (error) {
+      console.error('Failed to get active bot token:', error);
+      return null;
     }
   }
 
