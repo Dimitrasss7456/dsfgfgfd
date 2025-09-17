@@ -129,8 +129,12 @@ async function requestVerification() {
         return;
     }
 
-    if (!phone.match(/^\+7\d{10}$/)) {
-        showNotification('Неверный формат номера. Используйте формат +7xxxxxxxxxx', 'error');
+    // Validate Russian (+7xxxxxxxxxx) or Belarusian (+375xxxxxxxxx) phone numbers
+    const russianPattern = /^\+7\d{10}$/;
+    const belarusianPattern = /^\+375\d{9}$/;
+    
+    if (!russianPattern.test(phone) && !belarusianPattern.test(phone)) {
+        showNotification('Неверный формат номера. Используйте формат +7xxxxxxxxxx (Россия) или +375xxxxxxxxx (Беларусь)', 'error');
         return;
     }
 
