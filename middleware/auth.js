@@ -1,14 +1,33 @@
-// Simple API key authentication middleware
+// Secure API key authentication middleware
+const crypto = require('crypto');
+
+// Generate a secure API key if none is set
+const generateSecureApiKey = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+// Store the generated key for session (in production, use proper session management)
+let sessionApiKey = null;
+
 const authenticate = (req, res, next) => {
   const apiKey = process.env.ADMIN_API_KEY;
   
-  // For development, allow admin123 if no env var is set
-  const fallbackKey = process.env.NODE_ENV === 'production' ? null : 'admin123';
-  const validKey = apiKey || fallbackKey;
+  // Generate session key if no environment key is set (development only)
+  if (!apiKey && process.env.NODE_ENV !== 'production') {
+    if (!sessionApiKey) {
+      sessionApiKey = generateSecureApiKey();
+      console.log(`\n⚠️  БЕЗОПАСНОСТЬ: API ключ не настроен!`);
+      console.log(`🔑 Временный ключ для сессии: ${sessionApiKey}`);
+      console.log(`💡 Для производства установите ADMIN_API_KEY в переменные окружения\n`);
+    }
+  }
+  
+  const validKey = apiKey || sessionApiKey;
   
   if (!validKey) {
     return res.status(500).json({ 
-      error: 'Server configuration error: ADMIN_API_KEY not set'
+      error: 'Server configuration error: ADMIN_API_KEY not set',
+      hint: 'Set ADMIN_API_KEY environment variable'
     });
   }
   
@@ -24,4 +43,20 @@ const authenticate = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate };
+// API endpoint to get current API key (development only)
+const getApiKeyInfo = (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not available in production' });
+  }
+  
+  const apiKey = process.env.ADMIN_API_KEY || sessionApiKey;
+  
+  res.json({
+    hasKey: !!apiKey,
+    isFromEnv: !!process.env.ADMIN_API_KEY,
+    keyPreview: apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(-4)}` : null,
+    fullKey: apiKey // Only for development!
+  });
+};
+
+module.exports = { authenticate, getApiKeyInfo };

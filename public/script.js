@@ -3,10 +3,20 @@ let accounts = [];
 let contacts = [];
 let selectedContacts = [];
 let uploadedFile = null;
+let apiKey = null;
 
 // Initialize the app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initTabs();
+    
+    // Get API key first
+    try {
+        await getApiKey();
+        showNotification('Приложение готово к работе', 'success');
+    } catch (error) {
+        showNotification('Ошибка инициализации: ' + error.message, 'error');
+    }
+    
     loadAccounts();
     loadContacts();
     loadMessageHistory();
@@ -72,12 +82,54 @@ function hideNotification() {
     document.getElementById('notification').classList.add('hidden');
 }
 
+// Get API key for authentication
+async function getApiKey() {
+    try {
+        const response = await fetch('/api/auth/info');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const keyInfo = await response.json();
+        console.log('API key info received:', keyInfo);
+        
+        if (keyInfo && keyInfo.hasKey && keyInfo.fullKey) {
+            apiKey = keyInfo.fullKey;
+            console.log('✅ API ключ установлен:', keyInfo.isFromEnv ? 'из переменных окружения' : 'временный сеансовый ключ');
+            return true;
+        } else {
+            throw new Error('API key not provided by server');
+        }
+    } catch (error) {
+        console.error('Failed to get API key:', error);
+        // For development, still allow the app to work but show error
+        showNotification('Предупреждение: API ключ не получен. Функционал может работать некорректно.', 'error');
+        throw new Error('Не удалось получить ключ API для авторизации');
+    }
+}
+
+// Get headers with API key for authenticated requests
+function getAuthHeaders(contentType = 'application/json') {
+    const headers = {};
+    
+    if (contentType) {
+        headers['Content-Type'] = contentType;
+    }
+    
+    if (apiKey) {
+        headers['X-API-Key'] = apiKey;
+    }
+    
+    return headers;
+}
+
 // Account management
 async function loadAccounts() {
     try {
         showLoading();
         const response = await fetch('/api/accounts', {
-            headers: { 'X-API-Key': 'admin123' }
+            headers: getAuthHeaders()
         });
         const accountsData = await response.json();
 
@@ -142,10 +194,7 @@ async function requestVerification() {
         showLoading();
         const response = await fetch('/api/accounts/request-verification', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ phone })
         });
 
@@ -178,10 +227,7 @@ async function addAccount() {
         showLoading();
         const response = await fetch('/api/accounts', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ 
                 name, 
                 bot_token: botToken, 
@@ -221,10 +267,7 @@ async function testToken() {
         showLoading();
         const response = await fetch('/api/accounts/test', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123' 
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ bot_token: botToken })
         });
 
@@ -247,10 +290,7 @@ async function toggleAccount(id, isActive) {
         showLoading();
         const response = await fetch(`/api/accounts/${id}`, {
             method: 'PUT',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123' 
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ is_active: isActive })
         });
 
@@ -278,7 +318,7 @@ async function deleteAccount(id) {
         showLoading();
         const response = await fetch(`/api/accounts/${id}`, { 
             method: 'DELETE',
-            headers: { 'X-API-Key': 'admin123' }
+            headers: getAuthHeaders()
         });
         const result = await response.json();
 
@@ -300,7 +340,7 @@ async function loadContacts() {
     try {
         showLoading();
         const response = await fetch('/api/contacts', {
-            headers: { 'X-API-Key': 'admin123' }
+            headers: getAuthHeaders()
         });
         contacts = await response.json();
         renderContacts();
@@ -363,10 +403,7 @@ async function addContact() {
         showLoading();
         const response = await fetch('/api/contacts', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123' 
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ 
                 name, 
                 chat_id: chatId, 
@@ -410,10 +447,7 @@ async function importContacts() {
         showLoading();
         const response = await fetch('/api/contacts/import', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123' 
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ 
                 contacts: contactsData, 
                 account_id: parseInt(accountId) 
@@ -445,7 +479,7 @@ async function deleteContact(id) {
         showLoading();
         const response = await fetch(`/api/contacts/${id}`, { 
             method: 'DELETE',
-            headers: { 'X-API-Key': 'admin123' }
+            headers: getAuthHeaders()
         });
         const result = await response.json();
 
@@ -538,9 +572,7 @@ async function uploadFile() {
         showLoading();
         const response = await fetch('/api/upload', {
             method: 'POST',
-            headers: {
-                'X-API-Key': 'admin123' // Default API key for development
-            },
+            headers: getAuthHeaders(null),
             body: formData
         });
 
@@ -589,10 +621,7 @@ async function sendBulkMessage() {
 
         const response = await fetch('/api/messages/send-bulk', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': 'admin123' 
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
                 account_id: parseInt(accountId),
                 contact_ids: selectedContacts,
@@ -659,14 +688,14 @@ async function loadMessageHistory() {
 
         // Load statistics
         const statsResponse = await fetch(`/api/messages/stats${accountId ? '?account_id=' + accountId : ''}`, {
-            headers: { 'X-API-Key': 'admin123' }
+            headers: getAuthHeaders()
         });
         const stats = await statsResponse.json();
         renderStats(stats);
 
         // Load message history
         const historyResponse = await fetch(`/api/messages${accountId ? '?account_id=' + accountId : ''}`, {
-            headers: { 'X-API-Key': 'admin123' }
+            headers: getAuthHeaders()
         });
         const messages = await historyResponse.json();
         renderMessageHistory(messages);

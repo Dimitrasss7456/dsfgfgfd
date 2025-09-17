@@ -13,7 +13,7 @@ const { dbHelpers } = require('./db');
 const { upload, validateUploadedFile, cleanupOldFiles } = require('./utils/fileUpload');
 
 // Import authentication middleware
-const { authenticate } = require('./middleware/auth');
+const { authenticate, getApiKeyInfo } = require('./middleware/auth');
 
 // Middleware
 app.use(cors());
@@ -60,6 +60,9 @@ app.post('/api/upload', authenticate, upload.single('file'), (req, res) => {
     res.status(400).json({ error: error.message });
   }
 });
+
+// Development API key info endpoint
+app.get('/api/auth/info', getApiKeyInfo);
 
 // Serve main page
 app.get('/', (req, res) => {
