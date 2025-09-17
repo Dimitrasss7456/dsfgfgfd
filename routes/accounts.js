@@ -2,6 +2,7 @@ const express = require('express');
 const { Bot } = require('@maxhub/max-bot-api');
 const { dbHelpers } = require('../db');
 const smsService = require('../utils/smsService');
+const rateLimiter = require('../utils/rateLimiter');
 
 const router = express.Router();
 
@@ -27,6 +28,25 @@ router.post('/request-verification', async (req, res) => {
   if (!smsService.validatePhoneNumber(phone)) {
     return res.status(400).json({ 
       error: 'Неверный формат номера. Используйте формат +7xxxxxxxxxx (Россия) или +375xxxxxxxxx (Беларусь)' 
+    });
+  }
+
+  // Check rate limits for SMS requests
+  const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+  
+  const phoneRateCheck = rateLimiter.checkSMSRateLimit(phone);
+  if (!phoneRateCheck.allowed) {
+    return res.status(429).json({ 
+      error: phoneRateCheck.reason,
+      retryAfter: phoneRateCheck.retryAfter
+    });
+  }
+  
+  const ipRateCheck = rateLimiter.checkIPRateLimit(clientIP);
+  if (!ipRateCheck.allowed) {
+    return res.status(429).json({ 
+      error: ipRateCheck.reason,
+      retryAfter: ipRateCheck.retryAfter
     });
   }
 
@@ -91,6 +111,15 @@ router.post('/', async (req, res) => {
   }
 
   try {
+    // Check verification attempt limits
+    const verificationCheck = rateLimiter.checkVerificationAttempts(phone);
+    if (!verificationCheck.allowed) {
+      return res.status(429).json({ 
+        error: verificationCheck.reason,
+        retryAfter: verificationCheck.retryAfter
+      });
+    }
+
     // Verify the phone code
     const verification = await dbHelpers.get(
       'SELECT * FROM phone_verifications WHERE phone = ? AND code = ?',
@@ -98,6 +127,8 @@ router.post('/', async (req, res) => {
     );
     
     if (!verification) {
+      // Record failed attempt
+      rateLimiter.recordFailedVerification(phone);
       return res.status(400).json({ error: 'Неверный код подтверждения' });
     }
     
@@ -115,11 +146,13 @@ router.post('/', async (req, res) => {
       [name, bot_token, phone, 1]
     );
     
-    // Clean up used verification code
+    // Clean up used verification code and clear rate limiting
     await dbHelpers.run(
       'DELETE FROM phone_verifications WHERE phone = ?',
       [phone]
     );
+    
+    rateLimiter.clearVerificationAttempts(phone);
     
     res.status(201).json({
       id: result.id,

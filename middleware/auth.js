@@ -9,7 +9,8 @@ const generateSecureApiKey = () => {
 // Store the generated key for session (in production, use proper session management)
 let sessionApiKey = null;
 
-const authenticate = (req, res, next) => {
+// Initialize session API key if needed
+const initializeApiKey = () => {
   const apiKey = process.env.ADMIN_API_KEY;
   
   // Generate session key if no environment key is set (development only)
@@ -22,7 +23,11 @@ const authenticate = (req, res, next) => {
     }
   }
   
-  const validKey = apiKey || sessionApiKey;
+  return apiKey || sessionApiKey;
+};
+
+const authenticate = (req, res, next) => {
+  const validKey = initializeApiKey();
   
   if (!validKey) {
     return res.status(500).json({ 
@@ -49,12 +54,12 @@ const getApiKeyInfo = (req, res) => {
     return res.status(404).json({ error: 'Not available in production' });
   }
   
-  const apiKey = process.env.ADMIN_API_KEY || sessionApiKey;
+  const apiKey = initializeApiKey();
   
   res.json({
     hasKey: !!apiKey,
     isFromEnv: !!process.env.ADMIN_API_KEY,
-    keyPreview: apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(-4)}` : null,
+    keyPreview: apiKey ? `${apiKey.substring(0, 8)}...${apiKey.slice(-4)}` : null,
     fullKey: apiKey // Only for development!
   });
 };

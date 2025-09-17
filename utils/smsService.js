@@ -1,4 +1,5 @@
-const twilio = require('twilio');
+// Lazy load Twilio to prevent server crash if package is not installed
+let twilio = null;
 
 // SMS service using Twilio integration for MAX Messenger app
 class SMSService {
@@ -10,7 +11,15 @@ class SMSService {
     
     // Initialize Twilio client if credentials are available
     if (this.accountSid && this.authToken) {
-      this.client = twilio(this.accountSid, this.authToken);
+      try {
+        if (!twilio) {
+          twilio = require('twilio');
+        }
+        this.client = twilio(this.accountSid, this.authToken);
+      } catch (error) {
+        console.error('Twilio package not found. SMS functionality disabled:', error.message);
+        this.client = null;
+      }
     }
   }
 

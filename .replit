@@ -31,10 +31,6 @@ outputType = "webview"
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 38033
-externalPort = 3000
-
 [agent]
 expertMode = true
 integrations = ["twilio_send_message:1.0.0"]
