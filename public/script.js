@@ -120,11 +120,52 @@ function renderAccounts() {
     `).join('');
 }
 
+// Phone verification functions
+async function requestVerification() {
+    const phone = document.getElementById('phone').value.trim();
+
+    if (!phone) {
+        showNotification('Введите номер телефона', 'error');
+        return;
+    }
+
+    if (!phone.match(/^\+7\d{10}$/)) {
+        showNotification('Неверный формат номера. Используйте формат +7xxxxxxxxxx', 'error');
+        return;
+    }
+
+    try {
+        showLoading();
+        const response = await fetch('/api/accounts/request-verification', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': 'admin123'
+            },
+            body: JSON.stringify({ phone })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showNotification(result.message + (result.debug_code ? ` (Код: ${result.debug_code})` : ''), 'success');
+        } else {
+            showNotification(result.error, 'error');
+        }
+    } catch (error) {
+        showNotification('Ошибка запроса кода: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
 async function addAccount() {
     const name = document.getElementById('account-name').value.trim();
     const botToken = document.getElementById('bot-token').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const verificationCode = document.getElementById('verification-code').value.trim();
 
-    if (!name || !botToken) {
+    if (!name || !botToken || !phone || !verificationCode) {
         showNotification('Заполните все поля', 'error');
         return;
     }
@@ -135,10 +176,14 @@ async function addAccount() {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'X-API-Key': 'admin123',
                 'X-API-Key': 'admin123'
             },
-            body: JSON.stringify({ name, bot_token: botToken })
+            body: JSON.stringify({ 
+                name, 
+                bot_token: botToken, 
+                phone, 
+                verification_code: verificationCode 
+            })
         });
 
         const result = await response.json();
@@ -147,6 +192,8 @@ async function addAccount() {
             showNotification(result.message, 'success');
             document.getElementById('account-name').value = '';
             document.getElementById('bot-token').value = '';
+            document.getElementById('phone').value = '';
+            document.getElementById('verification-code').value = '';
             loadAccounts();
         } else {
             showNotification(result.error, 'error');
@@ -288,6 +335,10 @@ function renderContacts() {
 
 function loadContactAccountOptions() {
     const select = document.getElementById('contact-account');
+    if (!Array.isArray(accounts)) {
+        select.innerHTML = '<option value="">Выберите аккаунт</option>';
+        return;
+    }
     select.innerHTML = '<option value="">Выберите аккаунт</option>' +
         accounts.filter(acc => acc.is_active).map(account => 
             `<option value="${account.id}">${account.name}</option>`
@@ -410,6 +461,10 @@ async function deleteContact(id) {
 // Message sending
 function loadMessageAccountOptions() {
     const select = document.getElementById('message-account');
+    if (!Array.isArray(accounts)) {
+        select.innerHTML = '<option value="">Выберите аккаунт</option>';
+        return;
+    }
     select.innerHTML = '<option value="">Выберите аккаунт</option>' +
         accounts.filter(acc => acc.is_active).map(account => 
             `<option value="${account.id}">${account.name}</option>`
@@ -582,6 +637,10 @@ async function sendBulkMessage() {
 // Message history
 function loadHistoryAccountOptions() {
     const select = document.getElementById('history-account');
+    if (!Array.isArray(accounts)) {
+        select.innerHTML = '<option value="">Все аккаунты</option>';
+        return;
+    }
     select.innerHTML = '<option value="">Все аккаунты</option>' +
         accounts.map(account => 
             `<option value="${account.id}">${account.name}</option>`
