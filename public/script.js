@@ -16,15 +16,15 @@ document.addEventListener('DOMContentLoaded', () => {
 function initTabs() {
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
-    
+
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTab = btn.dataset.tab;
-            
+
             // Update active tab button
             tabBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
+
             // Update active tab content
             tabContents.forEach(content => {
                 content.classList.remove('active');
@@ -32,7 +32,7 @@ function initTabs() {
                     content.classList.add('active');
                 }
             });
-            
+
             // Load data for the active tab
             if (targetTab === 'contacts') {
                 loadContactAccountOptions();
@@ -57,11 +57,11 @@ function hideLoading() {
 function showNotification(message, type = 'info') {
     const notification = document.getElementById('notification');
     const messageEl = document.getElementById('notification-message');
-    
+
     notification.className = `notification ${type}`;
     messageEl.textContent = message;
     notification.classList.remove('hidden');
-    
+
     // Auto hide after 5 seconds
     setTimeout(() => {
         hideNotification();
@@ -79,10 +79,14 @@ async function loadAccounts() {
         const response = await fetch('/api/accounts', {
             headers: { 'X-API-Key': 'admin123' }
         });
-        accounts = await response.json();
-        renderAccounts();
+        const accountsData = await response.json();
+
+        // Ensure accounts is always an array
+        accounts = Array.isArray(accountsData) ? accountsData : [];
+        renderAccounts(accounts);
     } catch (error) {
         showNotification('Ошибка загрузки аккаунтов: ' + error.message, 'error');
+        accounts = []; // Set to empty array on error
     } finally {
         hideLoading();
     }
@@ -90,12 +94,12 @@ async function loadAccounts() {
 
 function renderAccounts() {
     const container = document.getElementById('accounts-list');
-    
+
     if (accounts.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет добавленных аккаунтов</div>';
         return;
     }
-    
+
     container.innerHTML = accounts.map(account => `
         <div class="list-item">
             <div class="item-info">
@@ -119,12 +123,12 @@ function renderAccounts() {
 async function addAccount() {
     const name = document.getElementById('account-name').value.trim();
     const botToken = document.getElementById('bot-token').value.trim();
-    
+
     if (!name || !botToken) {
         showNotification('Заполните все поля', 'error');
         return;
     }
-    
+
     try {
         showLoading();
         const response = await fetch('/api/accounts', {
@@ -136,9 +140,9 @@ async function addAccount() {
             },
             body: JSON.stringify({ name, bot_token: botToken })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             document.getElementById('account-name').value = '';
@@ -156,12 +160,12 @@ async function addAccount() {
 
 async function testToken() {
     const botToken = document.getElementById('bot-token').value.trim();
-    
+
     if (!botToken) {
         showNotification('Введите токен бота', 'error');
         return;
     }
-    
+
     try {
         showLoading();
         const response = await fetch('/api/accounts/test', {
@@ -172,9 +176,9 @@ async function testToken() {
             },
             body: JSON.stringify({ bot_token: botToken })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             showNotification(`Токен действителен! Бот: ${result.bot_info.first_name || 'Без имени'}`, 'success');
         } else {
@@ -198,9 +202,9 @@ async function toggleAccount(id, isActive) {
             },
             body: JSON.stringify({ is_active: isActive })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             loadAccounts();
@@ -218,7 +222,7 @@ async function deleteAccount(id) {
     if (!confirm('Вы уверены, что хотите удалить этот аккаунт?')) {
         return;
     }
-    
+
     try {
         showLoading();
         const response = await fetch(`/api/accounts/${id}`, { 
@@ -226,7 +230,7 @@ async function deleteAccount(id) {
             headers: { 'X-API-Key': 'admin123' }
         });
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             loadAccounts();
@@ -259,12 +263,12 @@ async function loadContacts() {
 
 function renderContacts() {
     const container = document.getElementById('contacts-list');
-    
+
     if (contacts.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет добавленных контактов</div>';
         return;
     }
-    
+
     container.innerHTML = contacts.map(contact => `
         <div class="list-item">
             <div class="item-info">
@@ -294,12 +298,12 @@ async function addContact() {
     const name = document.getElementById('contact-name').value.trim();
     const chatId = document.getElementById('chat-id').value.trim();
     const accountId = document.getElementById('contact-account').value;
-    
+
     if (!name || !chatId || !accountId) {
         showNotification('Заполните все поля', 'error');
         return;
     }
-    
+
     try {
         showLoading();
         const response = await fetch('/api/contacts', {
@@ -314,9 +318,9 @@ async function addContact() {
                 account_id: parseInt(accountId) 
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             document.getElementById('contact-name').value = '';
@@ -335,19 +339,19 @@ async function addContact() {
 async function importContacts() {
     const importData = document.getElementById('import-contacts').value.trim();
     const accountId = document.getElementById('contact-account').value;
-    
+
     if (!importData || !accountId) {
         showNotification('Выберите аккаунт и введите данные для импорта', 'error');
         return;
     }
-    
+
     try {
         const contactsData = JSON.parse(importData);
-        
+
         if (!Array.isArray(contactsData)) {
             throw new Error('Данные должны быть в формате массива');
         }
-        
+
         showLoading();
         const response = await fetch('/api/contacts/import', {
             method: 'POST',
@@ -360,9 +364,9 @@ async function importContacts() {
                 account_id: parseInt(accountId) 
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             document.getElementById('import-contacts').value = '';
@@ -381,7 +385,7 @@ async function deleteContact(id) {
     if (!confirm('Вы уверены, что хотите удалить этот контакт?')) {
         return;
     }
-    
+
     try {
         showLoading();
         const response = await fetch(`/api/contacts/${id}`, { 
@@ -389,7 +393,7 @@ async function deleteContact(id) {
             headers: { 'X-API-Key': 'admin123' }
         });
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             loadContacts();
@@ -410,25 +414,25 @@ function loadMessageAccountOptions() {
         accounts.filter(acc => acc.is_active).map(account => 
             `<option value="${account.id}">${account.name}</option>`
         ).join('');
-        
+
     select.addEventListener('change', updateRecipientList);
 }
 
 function updateRecipientList() {
     const accountId = document.getElementById('message-account')?.value;
     const container = document.getElementById('recipient-list');
-    
+
     if (!container) return;
-    
+
     const filteredContacts = accountId ? 
         contacts.filter(c => c.account_id == accountId) : 
         contacts;
-    
+
     if (filteredContacts.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет доступных контактов</div>';
         return;
     }
-    
+
     container.innerHTML = filteredContacts.map(contact => `
         <div class="recipient-item">
             <input type="checkbox" 
@@ -462,15 +466,15 @@ function deselectAllContacts() {
 async function uploadFile() {
     const fileInput = document.getElementById('message-file');
     const file = fileInput.files[0];
-    
+
     if (!file) {
         showNotification('Выберите файл для загрузки', 'error');
         return;
     }
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
         showLoading();
         const response = await fetch('/api/upload', {
@@ -480,9 +484,9 @@ async function uploadFile() {
             },
             body: formData
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             uploadedFile = {
                 id: result.fileId,
@@ -504,26 +508,26 @@ async function uploadFile() {
 async function sendBulkMessage() {
     const accountId = document.getElementById('message-account').value;
     const messageText = document.getElementById('message-text').value.trim();
-    
+
     if (!accountId) {
         showNotification('Выберите аккаунт', 'error');
         return;
     }
-    
+
     if (selectedContacts.length === 0) {
         showNotification('Выберите получателей', 'error');
         return;
     }
-    
+
     if (!messageText && !uploadedFile) {
         showNotification('Введите текст сообщения или загрузите файл', 'error');
         return;
     }
-    
+
     try {
         showLoading();
         document.getElementById('send-btn').disabled = true;
-        
+
         const response = await fetch('/api/messages/send-bulk', {
             method: 'POST',
             headers: { 
@@ -538,9 +542,9 @@ async function sendBulkMessage() {
                 file_name: uploadedFile?.name || null
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             const statusDiv = document.getElementById('send-status');
             statusDiv.className = 'status-success';
@@ -553,7 +557,7 @@ async function sendBulkMessage() {
                     `\nОшибки:\n${result.results.errors.map(e => `${e.contact}: ${e.error}`).join('\n')}` : 
                     '');
             showNotification('Рассылка завершена', 'success');
-            
+
             // Reset form
             document.getElementById('message-text').value = '';
             document.getElementById('message-file').value = '';
@@ -586,24 +590,24 @@ function loadHistoryAccountOptions() {
 
 async function loadMessageHistory() {
     const accountId = document.getElementById('history-account')?.value || '';
-    
+
     try {
         showLoading();
-        
+
         // Load statistics
         const statsResponse = await fetch(`/api/messages/stats${accountId ? '?account_id=' + accountId : ''}`, {
             headers: { 'X-API-Key': 'admin123' }
         });
         const stats = await statsResponse.json();
         renderStats(stats);
-        
+
         // Load message history
         const historyResponse = await fetch(`/api/messages${accountId ? '?account_id=' + accountId : ''}`, {
             headers: { 'X-API-Key': 'admin123' }
         });
         const messages = await historyResponse.json();
         renderMessageHistory(messages);
-        
+
     } catch (error) {
         showNotification('Ошибка загрузки истории: ' + error.message, 'error');
     } finally {
@@ -635,12 +639,12 @@ function renderStats(stats) {
 
 function renderMessageHistory(messages) {
     const container = document.getElementById('history-list');
-    
+
     if (messages.length === 0) {
         container.innerHTML = '<div class="empty-state">Нет отправленных сообщений</div>';
         return;
     }
-    
+
     container.innerHTML = messages.map(message => `
         <div class="list-item">
             <div class="item-info">
@@ -678,7 +682,7 @@ async function deleteMessage(id) {
     if (!confirm('Вы уверены, что хотите удалить эту запись?')) {
         return;
     }
-    
+
     try {
         showLoading();
         const response = await fetch(`/api/messages/${id}`, { 
@@ -686,7 +690,7 @@ async function deleteMessage(id) {
             headers: { 'X-API-Key': 'admin123' }
         });
         const result = await response.json();
-        
+
         if (response.ok) {
             showNotification(result.message, 'success');
             loadMessageHistory();

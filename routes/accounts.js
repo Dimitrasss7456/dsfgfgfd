@@ -14,33 +14,93 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Add new account
-router.post('/', async (req, res) => {
-  const { name, bot_token } = req.body;
+// Request verification code for phone
+router.post('/request-verification', async (req, res) => {
+  const { phone } = req.body;
   
-  if (!name || !bot_token) {
-    return res.status(400).json({ error: 'Имя и токен бота обязательны' });
+  if (!phone) {
+    return res.status(400).json({ error: 'Номер телефона обязателен' });
   }
 
   try {
+    // Generate 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    // Store verification code in database
+    await dbHelpers.run(
+      'INSERT OR REPLACE INTO phone_verifications (phone, code, expires_at) VALUES (?, ?, ?)',
+      [phone, verificationCode, expiresAt.toISOString()]
+    );
+    
+    // In a real app, you would send SMS here
+    // For now, we'll return the code (remove in production)
+    console.log(`Verification code for ${phone}: ${verificationCode}`);
+    
+    res.json({
+      message: 'Код подтверждения отправлен на номер',
+      // Remove this line in production:
+      debug_code: verificationCode
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Verify phone and add account
+router.post('/', async (req, res) => {
+  const { name, bot_token, phone, verification_code } = req.body;
+  
+  if (!name || !bot_token || !phone || !verification_code) {
+    return res.status(400).json({ error: 'Все поля обязательны для заполнения' });
+  }
+
+  try {
+    // Verify the phone code
+    const verification = await dbHelpers.get(
+      'SELECT * FROM phone_verifications WHERE phone = ? AND code = ?',
+      [phone, verification_code]
+    );
+    
+    if (!verification) {
+      return res.status(400).json({ error: 'Неверный код подтверждения' });
+    }
+    
+    if (new Date() > new Date(verification.expires_at)) {
+      return res.status(400).json({ error: 'Код подтверждения истек' });
+    }
+    
     // Test the bot token
     const bot = new Bot(bot_token);
     await bot.api.getMe();
     
+    // Add account with verified phone
     const result = await dbHelpers.run(
-      'INSERT INTO accounts (name, bot_token) VALUES (?, ?)',
-      [name, bot_token]
+      'INSERT INTO accounts (name, bot_token, phone, phone_verified) VALUES (?, ?, ?, ?)',
+      [name, bot_token, phone, 1]
+    );
+    
+    // Clean up used verification code
+    await dbHelpers.run(
+      'DELETE FROM phone_verifications WHERE phone = ?',
+      [phone]
     );
     
     res.status(201).json({
       id: result.id,
       name,
-      message: 'Аккаунт успешно добавлен'
+      phone,
+      message: 'Аккаунт успешно добавлен с подтвержденным номером'
     });
     
   } catch (error) {
     if (error.message.includes('UNIQUE constraint failed')) {
-      res.status(400).json({ error: 'Токен бота уже используется' });
+      if (error.message.includes('phone')) {
+        res.status(400).json({ error: 'Номер телефона уже используется' });
+      } else {
+        res.status(400).json({ error: 'Токен бота уже используется' });
+      }
     } else if (error.message.includes('bot')) {
       res.status(400).json({ error: 'Неверный токен бота: ' + error.message });
     } else {

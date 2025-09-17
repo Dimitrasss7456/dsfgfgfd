@@ -49,6 +49,27 @@ db.serialize(() => {
       console.log('Migration info: file_id column may already exist or table is new');
     }
   });
+
+  // Phone verifications table for storing verification codes
+  db.run(`CREATE TABLE IF NOT EXISTS phone_verifications (
+    phone TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Add phone fields to accounts table if they don't exist
+  db.run(`ALTER TABLE accounts ADD COLUMN phone TEXT UNIQUE`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.log('Migration info: phone column may already exist');
+    }
+  });
+
+  db.run(`ALTER TABLE accounts ADD COLUMN phone_verified INTEGER DEFAULT 0`, (err) => {
+    if (err && !err.message.includes('duplicate column')) {
+      console.log('Migration info: phone_verified column may already exist');
+    }
+  });
 });
 
 // Helper functions for database operations

@@ -27,6 +27,13 @@
                 <div class="form-row">
                     <input type="text" id="account-name" placeholder="Название аккаунта">
                     <input type="password" id="bot-token" placeholder="Токен бота MAX">
+                </div>
+                <div class="form-row">
+                    <input type="tel" id="phone" placeholder="Номер телефона (+7xxxxxxxxxx)">
+                    <button onclick="requestVerification()">Получить код</button>
+                    <input type="text" id="verification-code" placeholder="Код подтверждения" maxlength="6">
+                </div>
+                <div class="form-row">
                     <button onclick="addAccount()">Добавить аккаунт</button>
                     <button onclick="testToken()">Проверить токен</button>
                 </div>
